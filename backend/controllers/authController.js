@@ -1,4 +1,4 @@
-import {userModel } from "../models/userModel.js";
+import { userModel } from "../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -12,7 +12,10 @@ export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    const userExists = await user.findOne({ email });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Please fill all the fields" });
+    }
+    const userExists = await userModel.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: "User already exists" });
     }
@@ -29,8 +32,8 @@ export const registerUser = async (req, res) => {
         });
         let token = generateToken(user);
         res.cookie("token", token, {
-          httpOnly: true,
-          secure: true,
+          httpOnly: false,
+          secure: false,
           sameSite: "None",
         });
         res.status(201).json({
@@ -41,22 +44,71 @@ export const registerUser = async (req, res) => {
         });
       });
     });
-  } catch(error) {
+  } catch (error) {
     res.status(500).json({ message: "Something went wrong" });
     throw new Error(error);
   }
 };
 
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-export const loginUser = async(req,res)=>{
-    try{
-      const {email,password} = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please fill all the fields" });
     }
-    catch{
 
+    const user = await userModel.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
     }
-}
 
-export const logoutUser = async(req,res)=>{
-    
-}
+    bcrypt.compare(password, user.password, (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: "Something went wrong" });
+      }
+      if (!result) {
+        return res.status(400).json({ message: "Password is incorrect" });
+      }
+      let token = generateToken(user);
+      res.cookie("token", token, {
+        httpOnly: false,
+        secure: false,
+        sameSite: "None",
+      });
+      res.status(200).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        token,
+      });
+    });
+  } catch {
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const userCredits = async (req,res) => {
+  try{
+    const user = req.loggedInUser;
+    const userID = user._id;
+
+    const user1 = await userModel.findById(userID);
+    res.status(200).json({creditBalance:user1.creditBalance}); 
+  }catch(error){
+    res.status(400);
+    console.log("got error", error);
+    throw new Error(error.message);
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  try {
+    res.clearCookie("token");
+    res.status(200).json({ message: "Logout successful" });
+  } catch (error) {
+    res.status(400);
+    console.log("got error", error);
+    throw new Error(error.message);
+  }
+};
